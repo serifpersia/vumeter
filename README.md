@@ -1,6 +1,9 @@
 # VuMeter
 Basic VuMeter Over UDP or Serial
 
+![image](https://github.com/serifpersia/vumeter/assets/62844718/aec608e7-3cd4-451a-91a8-4958d8f56ad0)
+
+
 ## Usage
 
 1. **Setup**
