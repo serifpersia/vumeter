@@ -25,3 +25,6 @@ Basic VuMeter Over UDP or Serial
    - For Windows users:
      - Enable StereoMix or use VoiceMeeter Banana to route audio to a virtual B2 channel, then use that device as the audio source in the Java application.
    - Other systems need alternative methods to use desktop sound as the audio source.
+
+## LICENCE
+This project is licensed under the [MIT License](LICENSE).
