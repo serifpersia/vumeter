@@ -5,19 +5,14 @@ import java.awt.event.ActionListener;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-
+import java.util.concurrent.ArrayBlockingQueue;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Line;
-import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 import javax.swing.JOptionPane;
-import javax.swing.SwingWorker;
-
 import jssc.SerialPort;
 import jssc.SerialPortException;
 import jssc.SerialPortList;
@@ -33,7 +28,7 @@ public class UIController implements ActionListener {
 	private static final int UDP_PORT = 12345;
 	private static boolean capturing = false;
 	private TargetDataLine line;
-	private BlockingQueue<Integer> audioQueue = new LinkedBlockingQueue<>();
+	private final ArrayBlockingQueue<Integer> audioQueue = new ArrayBlockingQueue<>(100);
 	private DatagramSocket socket;
 	private SerialPort serialPort = null;
 
@@ -78,8 +73,6 @@ public class UIController implements ActionListener {
 			if (!listening) {
 				ui.btn_Start.setText("Stop");
 				listening = true;
-
-				// String selectedPort = (String) comPortComboBox.getSelectedItem();
 				if (selectedDevice != null) {
 
 					startAudioCapture(selectedMixerInfo);
@@ -96,7 +89,6 @@ public class UIController implements ActionListener {
 				ui.btn_Start.setText("Stop");
 				listening = true;
 				startSerial();
-				// String selectedPort = (String) comPortComboBox.getSelectedItem();
 				if (selectedDevice != null) {
 
 					startAudioCapture(selectedMixerInfo);
@@ -159,13 +151,10 @@ public class UIController implements ActionListener {
 	}
 
 	private void populateSerialDevices() {
-		// Clear the existing items in the combo box
 		ui.cb_SerialDevice.removeAllItems();
 
-		// Get the list of available serial ports
 		String[] portNames = SerialPortList.getPortNames();
 
-		// Add each port name to the combo box
 		for (String portName : portNames) {
 			ui.cb_SerialDevice.addItem(portName);
 		}
@@ -181,7 +170,7 @@ public class UIController implements ActionListener {
 		return null;
 	}
 
-	private void startAudioCapture(Mixer.Info selectedMixerInfo) {
+	public void startAudioCapture(Mixer.Info selectedMixerInfo) {
 		try {
 			if (capturing) {
 				System.out.println("Already capturing audio.");
@@ -203,7 +192,7 @@ public class UIController implements ActionListener {
 				return;
 			}
 
-			AudioFormat format = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 41000, 8, 1, 1, 41000, false);
+			AudioFormat format = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 1, 2, 44100, false);
 			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
 			if (!AudioSystem.isLineSupported(info)) {
 				System.err.println("Line not supported");
@@ -216,53 +205,48 @@ public class UIController implements ActionListener {
 
 			System.out.println("Listening with Device: " + selectedMixerInfo.getName());
 
-			SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
-				@Override
-				protected Void doInBackground() throws Exception {
-					byte[] buffer = new byte[AUDIO_BUFFER_SIZE];
-					int bytesRead;
-					while (capturing) {
-						bytesRead = line.read(buffer, 0, buffer.length);
-						int audioInputValue = processAudioData(buffer, bytesRead);
-						audioQueue.put(audioInputValue);
-					}
-					return null;
-				}
-
-				@Override
-				protected void done() {
-				}
-			};
-
-			worker.execute();
-
-			new Thread(() -> {
+			// Start audio capture in a separate thread
+			Thread captureThread = new Thread(() -> {
+				byte[] buffer = new byte[AUDIO_BUFFER_SIZE];
 				while (capturing) {
-					try {
-						int audioValue = audioQueue.take();
-
-						if (!serialToggled) {
-							socket = new DatagramSocket();
-
-							address = InetAddress.getByName(ui.ipField.getText());
-							sendAudioLevelOverUDP(socket, (byte) audioValue, address);
-						} else {
-							sendAudioLevelOverSerial((byte) audioValue);
-						}
-
-					} catch (Exception e) {
-						Thread.currentThread().interrupt();
-						e.printStackTrace();
+					int bytesRead = line.read(buffer, 0, buffer.length);
+					if (bytesRead > 0) {
+						int audioInputValue = processAudioData(buffer, bytesRead);
+						audioQueue.offer(audioInputValue);
 					}
 				}
-			}).start();
+			});
+			captureThread.start();
 
-		} catch (LineUnavailableException e) {
+			// Start data transmission thread
+			Thread transmissionThread = new Thread(() -> {
+				try {
+					socket = new DatagramSocket();
+					address = InetAddress.getByName(ui.ipField.getText());
+					while (capturing) {
+						int audioValue = audioQueue.take();
+						if (serialToggled) {
+							sendAudioLevelOverSerial((byte) audioValue);
+						} else {
+							sendAudioLevelOverUDP(socket, (byte) audioValue, address);
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				} finally {
+					if (socket != null && !socket.isClosed()) {
+						socket.close();
+					}
+				}
+			});
+			transmissionThread.start();
+
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static int processAudioData(byte[] audioData, int bytesRead) {
+	private int processAudioData(byte[] audioData, int bytesRead) {
 		long sum = 0;
 
 		for (int i = 0; i < bytesRead - 1; i += 2) {
@@ -271,7 +255,7 @@ public class UIController implements ActionListener {
 		}
 
 		double rms = Math.sqrt(sum / (bytesRead / 2));
-		double scalingFactor = 768 / (double) Short.MAX_VALUE;
+		double scalingFactor = 1184 / (double) Short.MAX_VALUE;
 
 		return (int) (scalingFactor * rms);
 	}
@@ -282,11 +266,9 @@ public class UIController implements ActionListener {
 		dataBytes[1] = (byte) ((audioLevel >> 8) & 0xFF);
 		try {
 			serialPort.writeBytes(dataBytes);
-			System.out.println(audioLevel);
 		} catch (SerialPortException e) {
 			e.printStackTrace();
 		}
-
 	}
 
 	private static void sendAudioLevelOverUDP(DatagramSocket socket, byte audioLevel, InetAddress receiverAddress)

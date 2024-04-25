@@ -1,6 +1,10 @@
 #include <FastLED.h>
 
 int audioLevel = 0;
+int decay = 0;
+int decay_check = 0;
+long pre_audio = 0;
+long audio = 0;
 
 // Define LED settings
 #define LED_PIN 18
@@ -23,6 +27,16 @@ void setup() {
 void loop() {
   receiveSerialData();
   vuMeter();
+
+  FastLED.show();
+
+  decay_check++;
+  if (decay_check > decay)
+  {
+    decay_check = 0;
+    if (audio > 0)
+      audio -= 5;
+  }
 }
 
 void receiveSerialData() {
@@ -35,25 +49,19 @@ void receiveSerialData() {
   }
 }
 
-void vuMeter() {
-  int numLEDsToLight = map(audioLevel, 0, 255, 0, NUM_LEDS);
-  int centerIndex = NUM_LEDS / 2;
+void vuMeter()
+{
+  pre_audio = ((long)NUM_LEDS * (long)audioLevel) / 256L;
 
-  static int prevNumLEDsToLight = -1;
-  if (numLEDsToLight != prevNumLEDsToLight) {
-    prevNumLEDsToLight = numLEDsToLight;
+  if (pre_audio > audio)
+    audio = pre_audio;
 
-    // Update only the changed LEDs
-    for (int i = 0; i < NUM_LEDS; i++) {
-      int distanceFromCenter = abs(i - centerIndex);
+  int start = (NUM_LEDS - audio) / 2;
 
-      if (audioLevel > 0 && distanceFromCenter <= numLEDsToLight / 2) {
-        int brightness = map(distanceFromCenter, 0, numLEDsToLight / 2, 255, 0);
-        leds[i] = CRGB(brightness, 0, 0);
-      } else {
-        leds[i] = CRGB::Black;
-      }
-    }
-    FastLED.show();
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (i >= start && i < start + audio)
+      leds[i] = CHSV(0, 255, 255);
+    else
+      leds[i] = CHSV(0, 0, 0);
   }
 }
