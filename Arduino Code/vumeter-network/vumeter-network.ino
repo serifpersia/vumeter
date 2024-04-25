@@ -30,7 +30,7 @@ void setup() {
   Serial.println("WiFi connected!");
 
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.setMaxPowerInVoltsAndMilliamps(5, 200);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 400);
 
   // CLEAR LEDS
   for (int i = 0; i < NUM_LEDS; i++)
