@@ -1,9 +1,8 @@
 <div align="center">
-
-
-<h1><span class="piano-text" style="color: white;">VuMeter</span>
    
 ![image](https://github.com/serifpersia/vumeter/assets/62844718/aec608e7-3cd4-451a-91a8-4958d8f56ad0)
+
+<h1><span class="piano-text" style="color: white;">VuMeter</span>
 
 [![Release](https://img.shields.io/github/release/serifpersia/pianolux-esp32.svg?style=flat-square)](https://github.com/serifpersia/vumeter/releases)
 [![License](https://img.shields.io/github/license/serifpersia/pianolux-esp32?color=blue&style=flat-square)](https://raw.githubusercontent.com/serifpersia/pianolux-esp32/master/LICENSE)
