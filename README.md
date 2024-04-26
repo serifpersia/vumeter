@@ -11,7 +11,9 @@
 
 ## Demo
 <div align="center">
-   TODO:
+
+https://github.com/serifpersia/vumeter/assets/62844718/acfba617-9f18-4abd-bd7f-81226b0b45fc
+
 </div>
 
 
